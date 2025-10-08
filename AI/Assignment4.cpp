@@ -2,87 +2,97 @@
 #include <vector>
 #include <queue>
 #include <cmath>
-#include <stack>
+#include <algorithm>
 using namespace std;
 
 struct Node {
     int x, y;
-    int g, h, f;
+    int g, h; // g = cost from start, h = heuristic to goal
     Node* parent;
-    Node(int x, int y, int g, int h, Node* p=nullptr)
-        : x(x), y(y), g(g), h(h), f(g+h), parent(p) {}
+    Node(int x, int y, int g=0, int h=0, Node* p=nullptr) : x(x), y(y), g(g), h(h), parent(p) {}
 };
 
-// Manhattan Distance Heuristic
-int heuristic(int x1, int y1, int x2, int y2) {
+// Compare nodes for priority queue
+struct CompareNode {
+    bool operator()(Node* a, Node* b) {
+        return (a->g + a->h) > (b->g + b->h);
+    }
+};
+
+// Heuristic: Manhattan distance
+int heuristic(int x1, int y1, int x2, int y2){
     return abs(x1 - x2) + abs(y1 - y2);
 }
 
-// A* Algorithm
-bool aStarSearch(vector<vector<int>>& grid) {
+// Check valid cell
+bool isValid(int x, int y, int rows, int cols){
+    return x >= 0 && y >= 0 && x < rows && y < cols;
+}
+
+// A* algorithm
+vector<pair<int,int>> AStar(vector<vector<int>> grid, pair<int,int> start, pair<int,int> goal) {
     int rows = grid.size();
     int cols = grid[0].size();
+    vector<vector<bool>> visited(rows, vector<bool>(cols,false));
+    
+    priority_queue<Node*, vector<Node*>, CompareNode> pq;
+    pq.push(new Node(start.first, start.second, 0, heuristic(start.first,start.second,goal.first,goal.second)));
 
-    auto cmp = [](Node* a, Node* b) { return a->f > b->f; };
-    priority_queue<Node*, vector<Node*>, decltype(cmp)> open(cmp);
+    int dx[4] = {-1, 1, 0, 0};
+    int dy[4] = {0, 0, -1, 1};
 
-    vector<vector<bool>> closed(rows, vector<bool>(cols, false));
+    Node* endNode = nullptr;
 
-    Node* start = new Node(0, 0, 0, heuristic(0, 0, rows-1, cols-1));
-    open.push(start);
+    while(!pq.empty()){
+        Node* current = pq.top(); pq.pop();
+        if(visited[current->x][current->y]) continue;
+        visited[current->x][current->y] = true;
 
-    vector<pair<int,int>> directions = {{1,0},{-1,0},{0,1},{0,-1}};
-
-    while (!open.empty()) {
-        Node* current = open.top();
-        open.pop();
-
-        int x = current->x, y = current->y;
-
-        // Reached goal
-        if (x == rows-1 && y == cols-1) {
-            cout << "Path found:\n";
-            stack<pair<int,int>> path;
-            while (current) {
-                path.push({current->x, current->y});
-                current = current->parent;
-            }
-            while (!path.empty()) {
-                cout << "(" << path.top().first << "," << path.top().second << ") ";
-                path.pop();
-            }
-            cout << endl;
-            return true;
+        if(current->x == goal.first && current->y == goal.second){
+            endNode = current;
+            break;
         }
 
-        closed[x][y] = true;
+        for(int i=0;i<4;i++){
+            int nx = current->x + dx[i];
+            int ny = current->y + dy[i];
 
-        for (auto [dx, dy] : directions) {
-            int nx = x + dx, ny = y + dy;
-            if (nx>=0 && ny>=0 && nx<rows && ny<cols && grid[nx][ny]==0 && !closed[nx][ny]) {
-                int gNew = current->g + 1;
-                int hNew = heuristic(nx, ny, rows-1, cols-1);
-                Node* neighbor = new Node(nx, ny, gNew, hNew, current);
-                open.push(neighbor);
+            if(isValid(nx, ny, rows, cols) && !visited[nx][ny] && grid[nx][ny] == 0){
+                int g_new = current->g + 1;
+                int h_new = heuristic(nx, ny, goal.first, goal.second);
+                pq.push(new Node(nx, ny, g_new, h_new, current));
             }
         }
     }
 
-    cout << "No path found!" << endl;
-    return false;
+    // Reconstruct path
+    vector<pair<int,int>> path;
+    while(endNode != nullptr){
+        path.push_back({endNode->x, endNode->y});
+        endNode = endNode->parent;
+    }
+    reverse(path.begin(), path.end());
+    return path;
 }
 
-// Example usage
-int main() {
+int main(){
     vector<vector<int>> grid = {
-        {0, 1, 0, 0, 0},
-        {0, 1, 0, 1, 0},
-        {0, 0, 0, 1, 0},
-        {1, 1, 0, 1, 0},
-        {0, 0, 0, 0, 0}
+        {0,0,0,0,0},
+        {1,1,0,1,0},
+        {0,0,0,1,0},
+        {0,1,1,0,0},
+        {0,0,0,0,0}
     };
 
-    aStarSearch(grid);
+    pair<int,int> start = {0,0};
+    pair<int,int> goal = {4,4};
 
-    return 0;
+    vector<pair<int,int>> path = AStar(grid, start, goal);
+
+    if(path.empty()) cout << "No path found!\n";
+    else {
+        cout << "Path found:\n";
+        for(auto p: path) cout << "(" << p.first << "," << p.second << ") ";
+        cout << endl;
+    }
 }
